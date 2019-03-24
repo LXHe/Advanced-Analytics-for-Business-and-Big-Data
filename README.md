@@ -5,7 +5,7 @@ Assignment1-To predict whether a customer will churn for a telco server<br />
   AUC of testing set:<br />
   1st model: Lasso_Logistic: 80.816667 (MaxMinScaler)<br />
   2nd model: PCA_Lasso_Logistic: 60.988571<br />          
-  3rd model: Decision_tree: 79;<br />
+  3rd model: Decision_tree: 79<br />
              Random_Forest: 91.179524<br />
   4th model: Gradient_boosting: 93.10381<br />
              Stochastic_gradient_boosting:<br />
