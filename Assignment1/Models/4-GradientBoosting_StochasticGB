@@ -1,0 +1,137 @@
+#%%
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import GridSearchCV
+from sklearn.metrics import roc_auc_score
+from sklearn.ensemble import GradientBoostingClassifier
+
+train_path = r'.\telco_train.csv'
+test_path = r'.\telco_test.csv'
+train_data = pd.read_csv(train_path)
+test_data = pd.read_csv(test_path)
+
+#%%
+# Calculate active days
+train_data['Current_date'] = '2013-10-31' 
+test_data['Current_date'] = '2013-10-31'
+train_data[['START_DATE', 'Current_date']] = train_data[['START_DATE', 'Current_date']].astype('datetime64[ns]') 
+test_data[['START_DATE', 'Current_date']] = test_data[['START_DATE', 'Current_date']].astype('datetime64[ns]')
+
+train_data['Active_days'] = (train_data['Current_date'] - train_data['START_DATE']).dt.days
+test_data['Active_days'] = (test_data['Current_date'] - test_data['START_DATE']).dt.days
+
+#%%
+# Create training and testing sets
+features_total = train_data.columns.values.tolist()
+features_drop = ['ID', 'CHURN', 'START_DATE', 'Current_date', 'FIN_STATE',
+    'AVG_DATA_3MONTH', 'COUNT_CONNECTIONS_3MONTH', 'AVG_DATA_1MONTH']
+features_used = list(set(features_total) - set(features_drop))
+
+X_train = train_data[features_used]
+X_test = test_data[features_used]
+y_train = train_data['CHURN'].values
+
+#%%
+# Gradient Boosting
+gbc = GradientBoostingClassifier(random_state=21)
+
+# Learning_rate tuning 
+eta = [0.01, 0.05, 0.1, 0.25, 0.5, 1]
+learning_rate = {'learning_rate': eta}
+
+gbc_clf = GridSearchCV(
+    estimator=gbc, param_grid=learning_rate, 
+    scoring='roc_auc', n_jobs=-1, cv=10
+)
+gbc_clf.fit(X_train, y_train)
+
+scores = gbc_clf.cv_results_['mean_test_score']
+best_gbc = gbc_clf.best_estimator_
+y_train_pred_gbc = best_gbc.predict_proba(X_train)[:, 1]
+auc_gbc = roc_auc_score(y_train, y_train_pred_gbc)
+# eta=0.25 gives the best score of 0.9877396438742779
+
+# plot
+fig = plt.figure()
+ax = fig.add_subplot(111)
+ax.plot(eta, scores)
+ax.set_ylabel('AUC')
+ax.set_xlabel('Learning rate')
+ax.set_title('Learning rate and AUC')
+plt.show()
+
+#%%
+# N_Estimator tuning 
+estimator_num = [5, 10, 20, 50, 100, 150, 200]
+n_estimators = {'n_estimators': estimator_num}
+
+gbc_clf = GridSearchCV(
+    estimator=gbc, param_grid=n_estimators, 
+    scoring='roc_auc', n_jobs=-1, cv=10
+)
+gbc_clf.fit(X_train, y_train)
+
+scores = gbc_clf.cv_results_['mean_test_score']
+best_gbc = gbc_clf.best_estimator_
+y_train_pred_gbc = best_gbc.predict_proba(X_train)[:, 1]
+auc_gbc = roc_auc_score(y_train, y_train_pred_gbc)
+# n_estimator=200 gives the best score of 0.9831840654871568
+# may result in overfitting as well. Decide to choose 100 or 150
+
+# plot
+fig = plt.figure()
+ax = fig.add_subplot(111)
+ax.plot(estimator_num, scores)
+ax.set_ylabel('AUC')
+ax.set_xlabel('No. of estimator')
+ax.set_title('No. of estimator and AUC')
+plt.show()
+
+#%%
+# Finalzing 
+eta = np.linspace(0.2, 0.4, num=5)
+# Specify dtype of estimator_num as integer
+# 'numpy.float64' object cannot be interpreted as an integer
+estimator_num = np.linspace(80, 120, num=5, dtype=int)
+depths = [3, 6, 8, 10]
+gbc_param = {
+    'learning_rate': eta,
+    'n_estimators': estimator_num,
+    'max_features': ['auto', 'sqrt'],
+    'max_depth': depths        
+}
+
+gbc_clf = GridSearchCV(
+    estimator=gbc, param_grid=gbc_param, 
+    scoring='roc_auc', n_jobs=-1, cv=10
+)
+gbc_clf.fit(X_train, y_train)
+
+best_gbc = gbc_clf.best_estimator_
+y_train_pred_gbc = best_gbc.predict_proba(X_train)[:, 1]
+auc_gbc = roc_auc_score(y_train, y_train_pred_gbc)
+
+#%%
+# Stochastic gradient boosting
+# Similar to Gradient boosting need to specify an extra 'subsample'
+sgbc = GradientBoostingClassifier(
+    n_estimators=500, random_state=21,
+    max_features='auto', max_depth=3
+)
+
+eta = np.linspace(0.2, 0.4, num=5)
+sgbc_param = {
+    'learning_rate': eta,
+    'subsample': [0.75, 0.85]
+}
+
+sgbc_clf = GridSearchCV(
+    estimator=sgbc, param_grid=sgbc_param, 
+    scoring='roc_auc', cv=10
+)
+sgbc_clf.fit(X_train, y_train)
+
+best_sgbc = sgbc_clf.best_estimator_
+y_train_pred_gbc = best_sgbc.predict_proba(X_train)[:, 1]
+auc_sgbc = roc_auc_score(y_train, y_train_pred_gbc)
