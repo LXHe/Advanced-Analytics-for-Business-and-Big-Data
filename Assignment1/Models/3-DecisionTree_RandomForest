@@ -1,0 +1,65 @@
+#%%
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.model_selection import GridSearchCV
+from sklearn.metrics import roc_auc_score
+from sklearn.ensemble import RandomForestClassifier
+
+
+train_path = r'.\telco_train.csv'
+test_path = r'.\telco_test.csv'
+
+train_data = pd.read_csv(train_path)
+test_data = pd.read_csv(test_path)
+#%%
+# Calculate active days
+train_data['Current_date'] = '2013-10-31' 
+test_data['Current_date'] = '2013-10-31'
+train_data[['START_DATE', 'Current_date']] = train_data[['START_DATE', 'Current_date']].astype('datetime64[ns]') 
+test_data[['START_DATE', 'Current_date']] = test_data[['START_DATE', 'Current_date']].astype('datetime64[ns]')
+
+# Add .dt.days to extract deltatime days. Otherwise, dtype will be timedelta64[ns], with days
+train_data['Active_days'] = (train_data['Current_date'] - train_data['START_DATE']).dt.days
+test_data['Active_days'] = (test_data['Current_date'] - test_data['START_DATE']).dt.days
+
+#%%
+# Create training and testing sets
+features_total = train_data.columns.values.tolist()
+features_drop = ['ID', 'CHURN', 'START_DATE', 'Current_date', 'FIN_STATE',
+    'AVG_DATA_3MONTH', 'COUNT_CONNECTIONS_3MONTH', 'AVG_DATA_1MONTH']
+features_used = list(set(features_total) - set(features_drop))
+
+X_train = train_data[features_used]
+X_test = test_data[features_used]
+y_train = train_data['CHURN'].values
+
+#%%
+# Build decision tree estimator    
+dt = DecisionTreeClassifier(random_state=21)
+
+dt_range = np.linspace(30, 50, num=21)
+dt_max_depth2 = {'max_depth': dt_range}
+
+# Build grid search for hypertuning
+dt_clf2 = GridSearchCV(estimator=dt, param_grid=dt_max_depth2, scoring='roc_auc', cv=10)
+dt_clf2.fit(X_train, y_train)
+best_dt2 = dt_clf2.best_estimator_
+y_train_pred2 = best_dt2.predict_proba(X_train)[:, 1]
+auc2 = roc_auc_score(y_train, y_train_pred2)
+# The result shows that max_depth=37 gives the best roc_auc score
+
+#%%
+# Random forest
+rf = RandomForestClassifier(random_state=21, bootstrap=True, n_estimators=100)
+rf_param = {
+    'max_depth': np.linspace(30, 50, num=21),
+    'max_features': ['auto', 'sqrt'],
+}
+rf_clf = GridSearchCV(estimator=rf, param_grid=rf_param, cv=10, scoring='roc_auc', n_jobs=-1)
+rf_clf.fit(X_train, y_train)
+# mex_depth=32, max_features='auto' gives the highest roc_auc score of 0.9999997081191901
+best_rf = rf_clf.best_estimator_
+y_train_pred_rf = best_rf.predict_proba(X_train)[:, 1]
+auc_rf = roc_auc_score(y_train, y_train_pred_rf)
