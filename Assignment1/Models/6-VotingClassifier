@@ -1,0 +1,99 @@
+import pandas as pd
+import numpy as np
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import VotingClassifier, RandomForestClassifier, GradientBoostingClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.metrics import roc_auc_score
+from sklearn.model_selection import GridSearchCV
+
+train_path = r'.\telco_train.csv'
+test_path = r'.\telco_test.csv'
+train_data = pd.read_csv(train_path)
+test_data = pd.read_csv(test_path)
+#%%
+train_data['Current_date'] = '2013-10-31' 
+test_data['Current_date'] = '2013-10-31'
+train_data[['START_DATE', 'Current_date']] = train_data[['START_DATE', 'Current_date']].astype('datetime64[ns]') 
+test_data[['START_DATE', 'Current_date']] = test_data[['START_DATE', 'Current_date']].astype('datetime64[ns]')
+
+train_data['Active_days'] = (train_data['Current_date'] - train_data['START_DATE']).dt.days
+test_data['Active_days'] = (test_data['Current_date'] - test_data['START_DATE']).dt.days
+
+#%%
+features_total = train_data.columns.values.tolist()
+features_drop = ['ID', 'CHURN', 'START_DATE', 'Current_date', 'FIN_STATE',
+    'AVG_DATA_3MONTH', 'COUNT_CONNECTIONS_3MONTH', 'AVG_DATA_1MONTH']
+features_used = list(set(features_total) - set(features_drop))
+
+#%%
+# Build preprocessing pipeline
+class DataFrameSelector(BaseEstimator, TransformerMixin):
+    '''
+    Select and preprocess features from dataframe
+    '''
+    def __init__(self, feature_name):
+        self.feature_name = feature_name
+    
+    def fit(self, df, y=None):
+        return self
+    
+    def transform(self, df):
+        return df[self.feature_name].values
+
+# Drop binary feature 'PREPAID'    
+num_feats = features_used.copy()
+num_feats.remove('PREPAID')
+
+# MinMaxScaler
+num_feats_pipeline = Pipeline([
+    ('num_feats_selector', DataFrameSelector(num_feats)),
+    ('scaler', MinMaxScaler())
+])
+    
+train_data_num = num_feats_pipeline.fit_transform(train_data)
+test_data_num = num_feats_pipeline.transform(test_data)
+
+# Stack standardized numeric features and binary features
+X_train = np.hstack((train_data_num, train_data[['PREPAID']].values))
+X_test = np.hstack((test_data_num, test_data[['PREPAID']].values))
+
+# Creat target values
+y_train = train_data['CHURN'].values
+
+#%%
+# Lasso logistic regression
+logreg = LogisticRegression(penalty='l1', solver='liblinear', C=7.9433)
+
+# Random forest
+rf = RandomForestClassifier(
+    random_state=21, bootstrap=True, max_features='auto', n_estimators=150
+)
+
+# Gradient boosting
+gbc = GradientBoostingClassifier(
+    random_state=21, learning_rate=0.25,
+    max_features='auto', n_estimators=150
+)
+
+# Naive bayes
+nb = GaussianNB()
+
+vote_clf = VotingClassifier(
+    estimators=[('lr', logreg), ('rf', rf), ('gb', gbc), ('nb', nb)], 
+    voting='soft'
+)
+
+params = { 
+    'rf__max_depth': [35, 40],
+    'gb__max_depth': [6, 8, 10]
+}
+
+enclf = GridSearchCV(estimator=vote_clf, param_grid=params, cv=10)
+enclf.fit(X_train, y_train)
+#%%
+best_enclf = enclf.best_estimator_
+y_train_pred = best_enclf.predict_proba(X_train)[:, 1]
+auc_score = roc_auc_score(y_train, y_train_pred)
