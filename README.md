@@ -25,3 +25,8 @@ Assignment1-To predict whether a customer will churn for a telco server<br />
   
   6th model: Voting_classification: 89.851905 (weighted)<br />
     Soft voting of Logistic_regression, Random_forest, Gradient_boosting and Naive_bayesian doesn't help to improve prediction.<br />
+
+  7th model: Neural_network:<br />
+    For activation function of hidden layer, 'sigmoid' beats 'relu'. <br />
+    For optimizer, 'adam' beats 'sgd'. <br />
+    Yet, AUCs on the test set are not good enough.
