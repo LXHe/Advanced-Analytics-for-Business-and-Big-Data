@@ -1,0 +1,183 @@
+#%%
+import pandas as pd
+import matplotlib.pyplot as plt
+from keras.layers import Dense
+from keras.models import Sequential
+from keras.callbacks import EarlyStopping
+from keras.utils import to_categorical
+from keras.models import load_model
+from keras import optimizers
+
+train_path = r'.\telco_train.csv'
+test_path = r.\telco_test.csv'
+
+train_data = pd.read_csv(train_path)
+test_data = pd.read_csv(test_path)
+
+#%%
+# Calculate active days
+train_data['Current_date'] = '2013-10-31' 
+test_data['Current_date'] = '2013-10-31'
+train_data[['START_DATE', 'Current_date']] = train_data[['START_DATE', 'Current_date']].astype('datetime64[ns]') 
+test_data[['START_DATE', 'Current_date']] = test_data[['START_DATE', 'Current_date']].astype('datetime64[ns]')
+
+# Add .dt.days to extract deltatime days. Otherwise, dtype will be timedelta64[ns], with days
+train_data['Active_days'] = (train_data['Current_date'] - train_data['START_DATE']).dt.days
+test_data['Active_days'] = (test_data['Current_date'] - test_data['START_DATE']).dt.days
+
+#%%
+# Create training and testing sets
+features_total = train_data.columns.values.tolist()
+features_drop = ['ID', 'CHURN', 'START_DATE', 'Current_date', 'FIN_STATE',
+    'AVG_DATA_3MONTH', 'COUNT_CONNECTIONS_3MONTH', 'AVG_DATA_1MONTH']
+features_used = list(set(features_total) - set(features_drop))
+
+X_train = train_data[features_used].as_matrix()
+X_test = test_data[features_used].as_matrix()
+
+# to_categorical assumes the class values were in string 
+# you will be label encoding them, hence starting everytime from 0 to n-classes
+# [1, 3] will be coded as [[0 1 0 0],[0 0 0 1]]
+y = to_categorical(train_data['CHURN'])
+
+#%%
+# Set input num of features
+input_dim = len(features_used)
+
+# Create model for hidden layer and hidden node testing
+def my_model(
+    hid_node=100, out_node=2, hid_lay=1, activation_hid='sigmoid', activation_out='softmax'
+):
+    '''
+    Create a classifier model with a default hidden layer of 1, hidden node of 100,
+    activation function of hidden layer is sigmoid,
+    activation function of output layer is softmax
+    '''
+    model = Sequential()
+    model.add(Dense(hid_node, activation=activation_hid, input_dim=input_dim))
+    i = 0
+    while i < hid_lay:
+        model.add(Dense(hid_node, activation=activation_hid))
+        i += 1
+    model.add(Dense(out_node, activation=activation_out))
+    return (model)
+
+#%%
+model_1 = my_model(hid_node=20)
+# Same hid_lay as model_1, less hid_node
+model_2 = my_model(hid_node=10)
+# More hid_lay than model_2, same hid_node
+model_3 = my_model(hid_lay=3)
+# More hid_lay and more hid_node
+model_4 = my_model(hid_node=30, hid_lay=5)
+
+# Compile models
+model_1.compile(
+    optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy']
+)
+model_2.compile(
+    optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy']
+)
+model_3.compile(
+    optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy']
+)
+model_4.compile(
+    optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy']
+)
+
+# Define callbacks and fit models
+early_stopping_monitor = EarlyStopping(patience=2)
+model_1_training = model_1.fit(
+    X_train, y, epochs=20, validation_split=0.3, 
+    callbacks=[early_stopping_monitor], verbose=False
+)
+model_2_training = model_2.fit(
+    X_train, y, epochs=20, validation_split=0.3, 
+    callbacks=[early_stopping_monitor], verbose=False
+)
+model_3_training = model_3.fit(
+    X_train, y, epochs=20, validation_split=0.3, 
+    callbacks=[early_stopping_monitor], verbose=False
+)
+model_4_training = model_4.fit(
+    X_train, y, epochs=20, validation_split=0.3, 
+    callbacks=[early_stopping_monitor], verbose=False
+)
+
+# model.fit() does not return the Keras model
+# but a History object containing loss and metric values of the training
+
+#%%
+# SGD optimizer
+model_1 = my_model(hid_node=20)
+# Same hid_lay as model_1, less hid_node
+model_2 = my_model(hid_node=10)
+# More hid_lay than model_2, same hid_node
+model_3 = my_model(hid_lay=3)
+# More hid_lay and more hid_node
+model_4 = my_model(hid_node=30, hid_lay=5)
+
+# Generate optimizer
+sgd = optimizers.SGD(lr=0.01)
+
+# Compile models
+model_1.compile(
+    optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy']
+)
+model_2.compile(
+    optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy']
+)
+model_3.compile(
+    optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy']
+)
+model_4.compile(
+    optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy']
+)
+
+# Define callbacks and fit models
+early_stopping_monitor = EarlyStopping(patience=2)
+model_1_training = model_1.fit(
+    X_train, y, epochs=20, validation_split=0.3, 
+    callbacks=[early_stopping_monitor], verbose=False
+)
+model_2_training = model_2.fit(
+    X_train, y, epochs=20, validation_split=0.3, 
+    callbacks=[early_stopping_monitor], verbose=False
+)
+model_3_training = model_3.fit(
+    X_train, y, epochs=20, validation_split=0.3, 
+    callbacks=[early_stopping_monitor], verbose=False
+)
+model_4_training = model_4.fit(
+    X_train, y, epochs=20, validation_split=0.3, 
+    callbacks=[early_stopping_monitor], verbose=False
+)
+
+#%%
+# Plot validation score
+plt.plot(model_1_training.history['val_loss'], label='Model_1: 2 hid_lay, 20 nodes, lr=0.01')
+plt.plot(model_2_training.history['val_loss'], label='Model_2: 2 hid_lay, 10 nodes, lr=0.01')
+plt.plot(model_3_training.history['val_loss'], label='Model_3: 4 hid_lay, 10 nodes, lr=0.01')
+plt.plot(model_4_training.history['val_loss'], label='Model_4: 6 hid_lay, 30 nodes, lr=0.01')
+plt.xlabel('Epochs')
+plt.ylabel('Loss in validation set')
+plt.legend(loc='best')
+plt.title('Loss score and simple NN tuning_sigmoid_sgd')
+plt.show()
+
+#%%
+# model_3 shows the lowest loss score
+
+# Save the model as h5 file
+model_3.save('churn_model.h5')
+churn_model = load_model('churn_model.h5')
+
+y_pred = churn_model.predict(X_test)
+# check unique values in numpy array
+# val, num = np.unique(y_pred[:, 1], return_counts=True) 
+
+# Customers who churn are coded as 1
+y_pred_prob = y_pred[:, 1]
+
+df_submit = test_data[['ID']]
+df_submit['CHURN'] = y_pred_prob
